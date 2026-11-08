@@ -360,7 +360,6 @@ img { display: block; max-width: 100%; }
 
 .search-box > span { color: #6e8173; font-size: 20px; }
 .search-box input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 13px; }
-.search-box input::placeholder { color: #a1aaa3; }
 .search-box kbd { padding: 4px 6px; border: 1px solid #e4e8e1; border-radius: 5px; color: #88948c; font: 10px var(--mono); white-space: nowrap; }
 .category-tabs { display: flex; flex-wrap: wrap; gap: 5px; }
 
@@ -459,6 +458,10 @@ img { display: block; max-width: 100%; }
 
 .login-card h2 { margin: 12px 0 5px; color: var(--ink); font: 600 31px var(--serif); }
 .login-card > p { margin: 0 0 25px; color: var(--muted); font-size: 13px; }
+.auth-mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 0 0 20px; padding: 4px; border-radius: 9px; background: #f0f3ed; }
+.auth-mode-switch button { min-height: 36px; border: 0; border-radius: 6px; background: transparent; color: #718077; font-size: 11px; font-weight: 600; }
+.auth-mode-switch button.selected { background: #fff; box-shadow: 0 1px 4px rgb(29 47 36 / 9%); color: #34483a; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
 .login-card label, .content-form label { display: block; margin-bottom: 17px; color: #49584e; font-size: 12px; font-weight: 600; }
 
 .login-card input, .content-form input, .content-form select, .content-form textarea, .public-comment-form input, .public-comment-form textarea {

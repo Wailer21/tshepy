@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-const API = (process.env.REACT_APP_API_BASE_URL || '').replace(/\/$/, '');
+const API = (process.env.REACT_APP_API_BASE_URL || 'https://tshepy.onrender.com').replace(/\/$/, '');
 const CREATOR_NAME = process.env.REACT_APP_CREATOR_NAME || 'The Creator Studio';
 const CREATOR_BIO = process.env.REACT_APP_CREATOR_BIO || 'A home for useful ideas, fresh perspectives, and stories worth sharing.';
 const CREATOR_AVATAR = process.env.REACT_APP_CREATOR_AVATAR_URL || '';
@@ -78,8 +78,9 @@ function App() {
     try { return JSON.parse(localStorage.getItem('creator-studio-creator') || 'null'); }
     catch { return null; }
   });
-  const [login, setLogin] = useState({ email: '', password: '' });
-  const [loginError, setLoginError] = useState('');
+  const [authMode, setAuthMode] = useState('login');
+  const [authForm, setAuthForm] = useState({ displayName: '', email: '', password: '' });
+  const [authError, setAuthError] = useState('');
   const [stats, setStats] = useState(null);
   const [adminContents, setAdminContents] = useState([]);
   const [adminComments, setAdminComments] = useState([]);
@@ -173,17 +174,26 @@ function App() {
     window.history.pushState({}, '', `/?creator=${encodeURIComponent(id)}`);
   }
 
-  async function submitLogin(event) {
+  async function submitAuth(event) {
     event.preventDefault();
-    setLoginError('');
+    setAuthError('');
     try {
-      const data = await request('/auth/login', { method: 'POST', body: JSON.stringify(login) });
+      const path = authMode === 'register' ? '/auth/register' : '/auth/login';
+      const body = authMode === 'register'
+        ? authForm
+        : { email: authForm.email, password: authForm.password };
+      const data = await request(path, { method: 'POST', body: JSON.stringify(body) });
       localStorage.setItem('creator-studio-token', data.token);
       localStorage.setItem('creator-studio-creator', JSON.stringify(data.creator));
       setSessionCreator(data.creator);
       setToken(data.token);
-      setLogin({ email: '', password: '' });
-    } catch (error) { setLoginError(error.message); }
+      if (authMode === 'register') {
+        setCreators((current) => current.some((creator) => creator._id === data.creator._id)
+          ? current
+          : [...current, data.creator].sort((first, second) => first.displayName.localeCompare(second.displayName)));
+      }
+      setAuthForm({ displayName: '', email: '', password: '' });
+    } catch (error) { setAuthError(error.message); }
   }
 
   function signOut() {
@@ -318,7 +328,7 @@ function App() {
               <div className="result-count">{contents.length} {contents.length === 1 ? 'piece' : 'pieces'} of content <span>↘</span></div>
             </div>
             <div className="filters">
-              <label className="search-box"><span aria-hidden="true">⌕</span><input type="search" aria-label="Search the content library" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search stories, topics, ideas..." /></label>
+              <label className="search-box"><span aria-hidden="true">⌕</span><input type="search" aria-label="Search the content library" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
               <div className="category-tabs" aria-label="Filter by category">
                 {['All', ...CATEGORIES].map((item) => <button key={item} className={category === item ? 'category-tab selected' : 'category-tab'} onClick={() => setCategory(item)}>{item}</button>)}
               </div>
@@ -347,7 +357,7 @@ function App() {
               </div>
             </div>
             <div className="filters">
-              <label className="search-box"><span aria-hidden="true">⌕</span><input type="search" aria-label="Search the creator feed" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search stories, topics, ideas..." /></label>
+              <label className="search-box"><span aria-hidden="true">⌕</span><input type="search" aria-label="Search the creator feed" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
               <div className="category-tabs" aria-label="Filter by category">
                 {['All', ...CATEGORIES].map((item) => <button key={item} className={category === item ? 'category-tab selected' : 'category-tab'} onClick={() => setCategory(item)}>{item}</button>)}
               </div>
@@ -361,7 +371,7 @@ function App() {
         </main>
       )) : (
         <main className={token ? 'dashboard-page dashboard-page-private' : 'dashboard-page'}>
-          {!token ? <section className="login-layout"><div className="login-art"><span className="login-spark">✳</span><span className="overline">YOUR CREATIVE SPACE</span><h1>Make good<br />things happen.</h1><p>Manage your stories, understand your audience, and keep everything moving.</p></div><form className="login-card" onSubmit={submitLogin}><span className="overline">CREATOR ACCESS</span><h2>Welcome back</h2><p>Sign in to manage your content.</p>{loginError && <div className="error-message">{loginError}</div>}<label>Email address<input type="email" required autoComplete="username" value={login.email} onChange={(event) => setLogin({ ...login, email: event.target.value })} placeholder="you@example.com" /></label><label>Password<input type="password" required autoComplete="current-password" value={login.password} onChange={(event) => setLogin({ ...login, password: event.target.value })} placeholder="Enter your password" /></label><button className="button button-dark" type="submit">Sign in <span>→</span></button><small>Your dashboard is private and protected.</small></form></section> : (
+          {!token ? <section className="login-layout"><div className="login-art"><span className="login-spark">✳</span><span className="overline">YOUR CREATIVE SPACE</span><h1>Make good<br />things happen.</h1><p>Manage your stories, understand your audience, and keep everything moving.</p></div><form className="login-card" onSubmit={submitAuth}><span className="overline">CREATOR ACCESS</span><h2>{authMode === 'register' ? 'Create your account' : 'Welcome back'}</h2><p>{authMode === 'register' ? 'Create an account to start your creator dashboard.' : 'Sign in to manage your content.'}</p><div className="auth-mode-switch" role="group" aria-label="Account access"><button type="button" className={authMode === 'login' ? 'selected' : ''} aria-pressed={authMode === 'login'} onClick={() => { setAuthMode('login'); setAuthError(''); }}>Sign in</button><button type="button" className={authMode === 'register' ? 'selected' : ''} aria-pressed={authMode === 'register'} onClick={() => { setAuthMode('register'); setAuthError(''); }}>Create account</button></div>{authError && <div className="error-message">{authError}</div>}{authMode === 'register' && <label>Display name<input type="text" required maxLength="80" autoComplete="name" value={authForm.displayName} onChange={(event) => setAuthForm({ ...authForm, displayName: event.target.value })} /></label>}<label>Email address<input type="email" required autoComplete="email" value={authForm.email} onChange={(event) => setAuthForm({ ...authForm, email: event.target.value })} /></label><label>Password<input type="password" required minLength={authMode === 'register' ? 12 : undefined} maxLength={authMode === 'register' ? 72 : undefined} autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} value={authForm.password} onChange={(event) => setAuthForm({ ...authForm, password: event.target.value })} /></label><button className="button button-dark" type="submit">{authMode === 'register' ? 'Create account' : 'Sign in'} <span>→</span></button><small>{authMode === 'register' ? 'Use at least 12 characters for your password.' : 'Your dashboard is private and protected.'}</small></form></section> : (
             <section className="admin-wrap">
               <div className="admin-header"><div><span className="overline">YOUR WORKSPACE</span><h1>{sessionCreator?.displayName ? `${sessionCreator.displayName}’s dashboard` : 'Creator dashboard'}<span className="green-dot">.</span></h1><p>Manage your content and keep your community close.</p></div><button className="button button-outline" onClick={signOut}>Sign out <span>↗</span></button></div>
               {adminError && <div className="error-message">{adminError}</div>}
@@ -378,7 +388,7 @@ function App() {
         </main>
       )}
 
-      {selected && detail && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setSelected(null)}><article className="detail-modal" role="dialog" aria-modal="true" aria-labelledby="content-detail-title"><button className="modal-close" onClick={() => setSelected(null)} aria-label="Close">×</button><div className="detail-visual">{detail.thumbnailUrl ? <img src={detail.thumbnailUrl} alt="" /> : <span>✳</span>}</div><div className="detail-content"><div className="card-meta"><span>{detail.category} · {detail.contentType}</span><span>{dateLabel(detail.publishAt)}</span></div><h2 id="content-detail-title">{detail.title}</h2><p className="detail-description">{detail.description}</p>{detail.articleBody && <div className="article-body">{detail.articleBody.split('\n').map((line, index) => <p key={index}>{line}</p>)}</div>}{detail.mediaUrl && <a className="media-link" href={detail.mediaUrl} target="_blank" rel="noreferrer">Open {detail.contentType.toLowerCase()} ↗</a>}<div className="engagement"><button className={liked ? 'engage-button liked' : 'engage-button'} onClick={toggleLike}><span>{liked ? '♥' : '♡'}</span> {likeCount} likes</button><button className="engage-button" onClick={shareContent}>↗ Share</button><span>{detail.views || 0} views</span></div><div className="comments-section"><h3>Join the conversation <span>{comments.length}</span></h3>{comments.map((comment) => <div className="public-comment" key={comment._id}><div className="comment-avatar">{comment.displayName.slice(0, 1).toUpperCase()}</div><div><strong>{comment.displayName}</strong><p>{comment.body}</p></div></div>)}{!comments.length && <p className="muted">Be the first to join the conversation.</p>}<form className="public-comment-form" onSubmit={submitComment}><input required maxLength="40" placeholder="Your name" value={commentForm.displayName} onChange={(event) => setCommentForm({ ...commentForm, displayName: event.target.value })} /><textarea required minLength="5" maxLength="1000" placeholder="Write a thoughtful comment..." value={commentForm.body} onChange={(event) => setCommentForm({ ...commentForm, body: event.target.value })} /><button className="button button-dark" type="submit">Post comment <span>→</span></button></form></div></div></article></div>}
+      {selected && detail && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setSelected(null)}><article className="detail-modal" role="dialog" aria-modal="true" aria-labelledby="content-detail-title"><button className="modal-close" onClick={() => setSelected(null)} aria-label="Close">×</button><div className="detail-visual">{detail.thumbnailUrl ? <img src={detail.thumbnailUrl} alt="" /> : <span>✳</span>}</div><div className="detail-content"><div className="card-meta"><span>{detail.category} · {detail.contentType}</span><span>{dateLabel(detail.publishAt)}</span></div><h2 id="content-detail-title">{detail.title}</h2><p className="detail-description">{detail.description}</p>{detail.articleBody && <div className="article-body">{detail.articleBody.split('\n').map((line, index) => <p key={index}>{line}</p>)}</div>}{detail.mediaUrl && <a className="media-link" href={detail.mediaUrl} target="_blank" rel="noreferrer">Open {detail.contentType.toLowerCase()} ↗</a>}<div className="engagement"><button className={liked ? 'engage-button liked' : 'engage-button'} onClick={toggleLike}><span>{liked ? '♥' : '♡'}</span> {likeCount} likes</button><button className="engage-button" onClick={shareContent}>↗ Share</button><span>{detail.views || 0} views</span></div><div className="comments-section"><h3>Join the conversation <span>{comments.length}</span></h3>{comments.map((comment) => <div className="public-comment" key={comment._id}><div className="comment-avatar">{comment.displayName.slice(0, 1).toUpperCase()}</div><div><strong>{comment.displayName}</strong><p>{comment.body}</p></div></div>)}{!comments.length && <p className="muted">Be the first to join the conversation.</p>}<form className="public-comment-form" onSubmit={submitComment}><label className="sr-only" htmlFor="comment-name">Your name</label><input id="comment-name" required maxLength="40" aria-label="Your name" value={commentForm.displayName} onChange={(event) => setCommentForm({ ...commentForm, displayName: event.target.value })} /><label className="sr-only" htmlFor="comment-body">Comment</label><textarea id="comment-body" required minLength="5" maxLength="1000" aria-label="Comment" value={commentForm.body} onChange={(event) => setCommentForm({ ...commentForm, body: event.target.value })} /><button className="button button-dark" type="submit">Post comment <span>→</span></button></form></div></div></article></div>}
       {flash && <button className="toast" onClick={() => setFlash('')}>{flash}<span>×</span></button>}
     </div>
   );
@@ -393,16 +403,16 @@ function ContentForm({ content, onSubmit }) {
   const [thumbnailPreviewFailed, setThumbnailPreviewFailed] = useState(false);
   const localDate = content?.publishAt ? (() => { const date = new Date(content.publishAt); date.setMinutes(date.getMinutes() - date.getTimezoneOffset()); return date.toISOString().slice(0, 16); })() : '';
   return <form className="content-form" onSubmit={onSubmit}>
-    <label className="wide">Title<input name="title" required maxLength="140" defaultValue={content?.title || ''} placeholder="Give your story a name" /></label>
+    <label className="wide">Title<input name="title" required maxLength="140" defaultValue={content?.title || ''} /></label>
     <label>Category<select name="category" defaultValue={content?.category || 'Education'}>{CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select></label>
     <label>Content type<select name="contentType" defaultValue={content?.contentType || 'Article'}>{TYPES.map((item) => <option key={item}>{item}</option>)}</select></label>
-    <label className="wide">Short description<textarea name="description" required maxLength="500" defaultValue={content?.description || ''} placeholder="What should viewers know about this?" /></label>
-    <label>Thumbnail image URL<input name="thumbnailUrl" type="text" maxLength="500" defaultValue={content?.thumbnailUrl || ''} placeholder="https://... or /thumbnails/..." onChange={(event) => { setThumbnailPreview(event.target.value.trim()); setThumbnailPreviewFailed(false); }} /></label>
+    <label className="wide">Short description<textarea name="description" required maxLength="500" defaultValue={content?.description || ''} /></label>
+    <label>Thumbnail image URL<input name="thumbnailUrl" type="text" maxLength="500" defaultValue={content?.thumbnailUrl || ''} onChange={(event) => { setThumbnailPreview(event.target.value.trim()); setThumbnailPreviewFailed(false); }} /></label>
     <div className="thumbnail-preview" aria-label="Thumbnail preview">
       {thumbnailPreview && !thumbnailPreviewFailed ? <img src={thumbnailPreview} alt="Thumbnail preview" onError={() => setThumbnailPreviewFailed(true)} /> : <div><span>✳</span><small>{thumbnailPreviewFailed ? 'Preview unavailable' : 'Thumbnail preview'}</small></div>}
     </div>
-    <label>Media URL<input name="mediaUrl" type="url" defaultValue={content?.mediaUrl || ''} placeholder="Video, audio, or external article URL" /></label>
-    <label className="wide">Article text <span className="optional">(optional)</span><textarea name="articleBody" className="article-input" defaultValue={content?.articleBody || ''} placeholder="Paste article content here, if applicable." /></label>
+    <label>Media URL<input name="mediaUrl" type="url" defaultValue={content?.mediaUrl || ''} /></label>
+    <label className="wide">Article text <span className="optional">(optional)</span><textarea name="articleBody" className="article-input" defaultValue={content?.articleBody || ''} /></label>
     <label>Status<select name="status" defaultValue={content?.status || 'Draft'}><option>Draft</option><option>Published</option><option>Scheduled</option></select></label>
     <label>Publication date<input name="publishAt" type="datetime-local" defaultValue={localDate} /></label>
     <label className="check-label wide"><input name="featured" type="checkbox" defaultChecked={content?.featured || false} /> Feature this on the viewer portal</label>

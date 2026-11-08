@@ -58,11 +58,13 @@ const User = mongoose.model('User', userSchema, 'users');
 const Comment = mongoose.model('Comment', commentSchema, 'comments');
 const Like = mongoose.model('Like', likeSchema, 'likes');
 
-const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:3000').split(',').map((origin) => origin.trim());
+const allowedOrigins = process.env.CLIENT_URL?.split(',').map((origin) => origin.trim()).filter(Boolean);
 app.use(helmet());
-app.use(cors({ origin: allowedOrigins, credentials: false }));
+app.set('trust proxy', 1);
+app.use(cors({ origin: allowedOrigins?.length ? allowedOrigins : true, credentials: false }));
 app.use(express.json({ limit: '1mb' }));
 app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-8', legacyHeaders: false }));
+app.use('/api/auth/register', rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false }));
 app.use('/api/comments', rateLimit({ windowMs: 15 * 60 * 1000, limit: 40, standardHeaders: 'draft-8', legacyHeaders: false }));
 
 function fail(res, status, message) { return res.status(status).json({ message }); }
@@ -132,6 +134,25 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) return fail(res, 401, 'Email or password is incorrect.');
   const token = jwt.sign({ sub: user.id, email: user.email, role: user.role }, jwtSecret, { expiresIn: '8h' });
   return res.json({ token, creator: publicCreator(user) });
+}));
+
+app.post('/api/auth/register', asyncRoute(async (req, res) => {
+  const displayName = String(req.body.displayName || '').trim();
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const password = String(req.body.password || '');
+  if (displayName.length < 2 || displayName.length > 80) return fail(res, 400, 'Display name must be between 2 and 80 characters.');
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(res, 400, 'Enter a valid email address.');
+  if (password.length < 12 || Buffer.byteLength(password, 'utf8') > 72) return fail(res, 400, 'Password must be at least 12 characters and no more than 72 bytes.');
+  if (await User.exists({ email })) return fail(res, 409, 'An account with this email already exists.');
+  const passwordHash = await bcrypt.hash(password, 12);
+  let creator;
+  try { creator = await User.create({ email, passwordHash, displayName }); }
+  catch (error) {
+    if (error.code === 11000) return fail(res, 409, 'An account with this email already exists.');
+    throw error;
+  }
+  const token = jwt.sign({ sub: creator.id, email: creator.email, role: creator.role }, jwtSecret, { expiresIn: '8h' });
+  return res.status(201).json({ token, creator: publicCreator(creator) });
 }));
 
 app.get('/api/creators', asyncRoute(async (_req, res) => {
